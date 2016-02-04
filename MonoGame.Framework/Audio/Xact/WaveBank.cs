@@ -16,7 +16,12 @@ namespace Microsoft.Xna.Framework.Audio
         private SoundEffect[] _sounds;
         private string _bankName;
 
+        // These are only used for streaming WaveBanks
+        private BinaryReader    _StreamWaveBankReader;
+        private WaveBankEntry[] _StreamWaveBankEntries;
+
         public bool IsDisposed { get; private set; }
+        public bool IsPrepared { get; private set; }
 
         struct Segment
         {
@@ -26,10 +31,14 @@ namespace Microsoft.Xna.Framework.Audio
 
         struct WaveBankEntry
         {
-            public int Format;
-            public Segment PlayRegion;
-            public Segment LoopRegion;
-            public int FlagsAndDuration;
+            public int      Format;
+            public Segment  PlayRegion;
+            public Segment  LoopRegion;
+            public int      FlagsAndDuration;
+            public int      codec;
+            public int      chans;
+            public int      rate;
+            public int      align;
         }
 
         struct WaveBankHeader
@@ -66,25 +75,6 @@ namespace Microsoft.Xna.Framework.Audio
         /// <remarks>This constructor immediately loads all wave data into memory at once.</remarks>
         public WaveBank(AudioEngine audioEngine, string nonStreamingWaveBankFilename)
         {
-            //XWB PARSING
-            //Adapted from MonoXNA
-            //Originally adaped from Luigi Auriemma's unxwb
-			
-            WaveBankHeader wavebankheader;
-            WaveBankData wavebankdata;
-            WaveBankEntry wavebankentry;
-
-            wavebankdata.EntryNameElementSize = 0;
-            wavebankdata.CompactFormat = 0;
-            wavebankdata.Alignment = 0;
-            wavebankdata.BuildTime = 0;
-
-            wavebankentry.Format = 0;
-            wavebankentry.PlayRegion.Length = 0;
-            wavebankentry.PlayRegion.Offset = 0;
-
-            int wavebank_offset = 0;
-
             nonStreamingWaveBankFilename = FileHelpers.NormalizeFilePathSeparators(nonStreamingWaveBankFilename);
 
 #if !ANDROID
@@ -97,7 +87,61 @@ namespace Microsoft.Xna.Framework.Audio
 			ms.Position = 0;
 			BinaryReader reader = new BinaryReader(ms);
 #endif
-			reader.ReadBytes(4);
+
+            LoadWaveBank(audioEngine, reader, false);
+
+			
+        }
+		
+        /// <param name="audioEngine">Instance of the AudioEngine to associate this wave bank with.</param>
+        /// <param name="streamingWaveBankFilename">Path to the .xwb to stream from.</param>
+        /// <param name="offset">DVD sector-aligned offset within the wave bank data file.</param>
+        /// <param name="packetsize">Stream packet size, in sectors, to use for each stream. The minimum value is 2.</param>
+        /// <remarks>
+        /// <para>This constructor streams wave data as needed.</para>
+        /// <para>Note that packetsize is in sectors, which is 2048 bytes.</para>
+        /// <para>AudioEngine.Update() must be called at least once before using data from a streaming wave bank.</para>
+        /// </remarks>
+		public WaveBank(AudioEngine audioEngine, string streamingWaveBankFilename, int offset, short packetsize)
+		{
+            streamingWaveBankFilename = FileHelpers.NormalizeFilePathSeparators(streamingWaveBankFilename);
+
+            _StreamWaveBankReader = new BinaryReader(TitleContainer.OpenStream(streamingWaveBankFilename));
+
+            LoadWaveBank(audioEngine, _StreamWaveBankReader, true);
+		}
+
+        private void LoadWaveBank(AudioEngine audioEngine, BinaryReader reader, bool isStreaming)
+        {
+            //XWB PARSING
+            //Adapted from MonoXNA
+            //Originally adaped from Luigi Auriemma's unxwb
+
+            /* Until we finish the LoadWaveBank process, this WaveBank is NOT 
+ 			 * ready to run. For us this doesn't really matter, but the game 
+ 			 * could be loading WaveBanks asynchronously, so let's be careful. 
+ 			 * -flibit 
+ 			 */ 
+ 			IsPrepared = false; 
+
+
+            WaveBankHeader wavebankheader;
+            WaveBankData wavebankdata;
+            WaveBankEntry wavebankentry = new WaveBankEntry();
+
+            wavebankdata.EntryNameElementSize = 0;
+            wavebankdata.CompactFormat = 0;
+            wavebankdata.Alignment = 0;
+            wavebankdata.BuildTime = 0;
+
+            wavebankentry.Format = 0;
+            wavebankentry.PlayRegion.Length = 0;
+            wavebankentry.PlayRegion.Offset = 0;
+
+            int wavebank_offset = 0;
+
+            // Reader starts here
+            reader.ReadBytes(4);
 
             wavebankheader.Version = reader.ReadInt32();
 
@@ -123,11 +167,11 @@ namespace Microsoft.Xna.Framework.Audio
 
             if ((wavebankheader.Version == 2) || (wavebankheader.Version == 3))
             {
-                wavebankdata.BankName = System.Text.Encoding.UTF8.GetString(reader.ReadBytes(16),0,16).Replace("\0", "");
+                wavebankdata.BankName = System.Text.Encoding.UTF8.GetString(reader.ReadBytes(16), 0, 16).Replace("\0", "");
             }
             else
             {
-                wavebankdata.BankName = System.Text.Encoding.UTF8.GetString(reader.ReadBytes(64),0,64).Replace("\0", "");
+                wavebankdata.BankName = System.Text.Encoding.UTF8.GetString(reader.ReadBytes(64), 0, 64).Replace("\0", "");
             }
 
             _bankName = wavebankdata.BankName;
@@ -157,10 +201,10 @@ namespace Microsoft.Xna.Framework.Audio
                     wavebank_offset +
                     (wavebankdata.EntryCount * wavebankdata.EntryMetaDataElementSize);
             }
-            
+
             int segidx_entry_name = 2;
             if (wavebankheader.Version >= 42) segidx_entry_name = 3;
-            
+
             if ((wavebankheader.Segments[segidx_entry_name].Offset != 0) &&
                 (wavebankheader.Segments[segidx_entry_name].Length != 0))
             {
@@ -170,6 +214,10 @@ namespace Microsoft.Xna.Framework.Audio
             }
 
             _sounds = new SoundEffect[wavebankdata.EntryCount];
+            if (isStreaming)
+            {
+                _StreamWaveBankEntries = new WaveBankEntry[wavebankdata.EntryCount];
+            }
 
             for (int current_entry = 0; current_entry < wavebankdata.EntryCount; current_entry++)
             {
@@ -177,8 +225,8 @@ namespace Microsoft.Xna.Framework.Audio
                 //SHOWFILEOFF;
 
                 //memset(&wavebankentry, 0, sizeof(wavebankentry));
-				wavebankentry.LoopRegion.Length = 0;
-				wavebankentry.LoopRegion.Offset = 0;
+                wavebankentry.LoopRegion.Length = 0;
+                wavebankentry.LoopRegion.Offset = 0;
 
                 if ((wavebankdata.Flags & Flag_Compact) != 0)
                 {
@@ -235,15 +283,15 @@ namespace Microsoft.Xna.Framework.Audio
             //}
 
                 wavebank_handle:
-                wavebank_offset += wavebankdata.EntryMetaDataElementSize;
+                wavebank_offset                 += wavebankdata.EntryMetaDataElementSize;
                 wavebankentry.PlayRegion.Offset += playregion_offset;
-                
+
                 // Parse WAVEBANKMINIWAVEFORMAT
-                
-                int codec;
-                int chans;
-                int rate;
-                int align;
+
+                //int codec;
+                //int chans;
+                //int rate;
+                //int align;
                 //int bits;
 
                 if (wavebankheader.Version == 1)
@@ -258,11 +306,11 @@ namespace Microsoft.Xna.Framework.Audio
                     // | wBlockAlign
                     // wBitsPerSample
 
-                    codec = (wavebankentry.Format) & ((1 << 1) - 1);
-                    chans = (wavebankentry.Format >> (1)) & ((1 << 3) - 1);
-                    rate = (wavebankentry.Format >> (1 + 3 + 1)) & ((1 << 18) - 1);
-                    align = (wavebankentry.Format >> (1 + 3 + 1 + 18)) & ((1 << 8) - 1);
-                    //bits = (wavebankentry.Format >> (1 + 3 + 1 + 18 + 8)) & ((1 << 1) - 1);
+                    wavebankentry.codec = (wavebankentry.Format) & ((1 << 1) - 1);
+                    wavebankentry.chans = (wavebankentry.Format >> (1)) & ((1 << 3) - 1);
+                    wavebankentry.rate  = (wavebankentry.Format >> (1 + 3 + 1)) & ((1 << 18) - 1);
+                    wavebankentry.align = (wavebankentry.Format >> (1 + 3 + 1 + 18)) & ((1 << 8) - 1);
+                    //bits              = (wavebankentry.Format >> (1 + 3 + 1 + 18 + 8)) & ((1 << 1) - 1);
 
                     /*} else if(wavebankheader.dwVersion == 23) { // I'm not 100% sure if the following is correct
                         // version 23:
@@ -295,71 +343,108 @@ namespace Microsoft.Xna.Framework.Audio
                     // | wBlockAlign
                     // wBitsPerSample
 
-                    codec = (wavebankentry.Format) & ((1 << 2) - 1);
-                    chans = (wavebankentry.Format >> (2)) & ((1 << 3) - 1);
-                    rate = (wavebankentry.Format >> (2 + 3)) & ((1 << 18) - 1);
-                    align = (wavebankentry.Format >> (2 + 3 + 18)) & ((1 << 8) - 1);
-                    //bits = (wavebankentry.Format >> (2 + 3 + 18 + 8)) & ((1 << 1) - 1);
+                    wavebankentry.codec = (wavebankentry.Format) & ((1 << 2) - 1);
+                    wavebankentry.chans = (wavebankentry.Format >> (2)) & ((1 << 3) - 1);
+                    wavebankentry.rate  = (wavebankentry.Format >> (2 + 3)) & ((1 << 18) - 1);
+                    wavebankentry.align = (wavebankentry.Format >> (2 + 3 + 18)) & ((1 << 8) - 1);
+                    //bits              = (wavebankentry.Format >> (2 + 3 + 18 + 8)) & ((1 << 1) - 1);
                 }
-                
-                reader.BaseStream.Seek(wavebankentry.PlayRegion.Offset, SeekOrigin.Begin);
-                byte[] audiodata = reader.ReadBytes(wavebankentry.PlayRegion.Length);
-                
-                if (codec == MiniFormatTag_PCM) {
-                    
-                    //write PCM data into a wav
-#if DIRECTX
-                    
-                    // TODO: Wouldn't storing a SoundEffectInstance like this
-                    // result in the "parent" SoundEffect being garbage collected?
-                    
-					SharpDX.Multimedia.WaveFormat waveFormat = new SharpDX.Multimedia.WaveFormat(rate, chans);
-                    var sfx = new SoundEffect(audiodata, 0, audiodata.Length, rate, (AudioChannels)chans, wavebankentry.LoopRegion.Offset, wavebankentry.LoopRegion.Length)
-                        {
-                            _format = waveFormat
-                        };
 
-					_sounds[current_entry] = sfx;
+                if (isStreaming)
+                {
+                    _StreamWaveBankEntries[current_entry].Format           = wavebankentry.Format;
+                    _StreamWaveBankEntries[current_entry].PlayRegion       = wavebankentry.PlayRegion;
+                    _StreamWaveBankEntries[current_entry].LoopRegion       = wavebankentry.LoopRegion;
+                    _StreamWaveBankEntries[current_entry].FlagsAndDuration = wavebankentry.FlagsAndDuration;
+                    _StreamWaveBankEntries[current_entry].codec            = wavebankentry.codec;
+                    _StreamWaveBankEntries[current_entry].chans            = wavebankentry.chans;
+                    _StreamWaveBankEntries[current_entry].rate             = wavebankentry.rate;
+                    _StreamWaveBankEntries[current_entry].align            = wavebankentry.align;
+                    //_StreamWaveBankEntries[current_entry] = wavebankentry;
+                }
+                else
+                {
+                    LoadWaveEntry(wavebankentry, current_entry, reader);
+                }
+
+            }
+
+            audioEngine.Wavebanks[_bankName] = this;
+
+            IsDisposed = false; 
+            IsPrepared = true;
+        }
+
+        private void LoadWaveEntry(WaveBankEntry wavebankentry, int current_entry, BinaryReader reader)
+        {
+            reader.BaseStream.Seek(wavebankentry.PlayRegion.Offset, SeekOrigin.Begin);
+            byte[] audiodata = reader.ReadBytes(wavebankentry.PlayRegion.Length);
+
+            if (wavebankentry.codec == MiniFormatTag_PCM)
+            {
+
+                //write PCM data into a wav
+#if DIRECTX
+
+                // TODO: Wouldn't storing a SoundEffectInstance like this
+                // result in the "parent" SoundEffect being garbage collected?
+
+                SharpDX.Multimedia.WaveFormat waveFormat = new SharpDX.Multimedia.WaveFormat(wavebankentry.rate, wavebankentry.chans);
+                var sfx = new SoundEffect(audiodata, 0, audiodata.Length, wavebankentry.rate, (AudioChannels)wavebankentry.chans, wavebankentry.LoopRegion.Offset, wavebankentry.LoopRegion.Length)
+                {
+                    _format = waveFormat
+                };
+
+                _sounds[current_entry] = sfx;
 #else
-                    _sounds[current_entry] = new SoundEffect(audiodata, rate, (AudioChannels)chans);
+                    _sounds[current_entry] = new SoundEffect(audiodata, wavebankentry.rate, (AudioChannels)wavebankentry.chans);
 #endif
-                } else if (codec == MiniForamtTag_WMA) { //WMA or xWMA (or XMA2)
-                    byte[] wmaSig = {0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11, 0xa6, 0xd9, 0x0, 0xaa, 0x0, 0x62, 0xce, 0x6c};
-                    
-                    bool isWma = true;
-                    for (int i=0; i<wmaSig.Length; i++) {
-                        if (wmaSig[i] != audiodata[i]) {
-                            isWma = false;
-                            break;
-                        }
+            }
+            else if (wavebankentry.codec == MiniForamtTag_WMA)
+            { //WMA or xWMA (or XMA2)
+                byte[] wmaSig = { 0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11, 0xa6, 0xd9, 0x0, 0xaa, 0x0, 0x62, 0xce, 0x6c };
+
+                bool isWma = true;
+                for (int i = 0; i < wmaSig.Length; i++)
+                {
+                    if (wmaSig[i] != audiodata[i])
+                    {
+                        isWma = false;
+                        break;
                     }
-                    
-                    //Let's support m4a data as well for convenience
-                    byte[][] m4aSigs = new byte[][] {
+                }
+
+                //Let's support m4a data as well for convenience
+                byte[][] m4aSigs = new byte[][] {
                         new byte[] {0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x4D, 0x34, 0x41, 0x20, 0x00, 0x00, 0x02, 0x00},
                         new byte[] {0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, 0x4D, 0x34, 0x41, 0x20, 0x00, 0x00, 0x00, 0x00}
                     };
-                    
-                    bool isM4a = false;
-                    for (int i=0; i<m4aSigs.Length; i++) {    
-                        byte[] sig = m4aSigs[i];
-                        bool matches = true;
-                        for (int j=0; j<sig.Length; j++) {
-                            if (sig[j] != audiodata[j]) {
-                                matches = false;
-                                break;
-                            }
-                        }
-                        if (matches) {
-                            isM4a = true;
+
+                bool isM4a = false;
+                for (int i = 0; i < m4aSigs.Length; i++)
+                {
+                    byte[] sig = m4aSigs[i];
+                    bool matches = true;
+                    for (int j = 0; j < sig.Length; j++)
+                    {
+                        if (sig[j] != audiodata[j])
+                        {
+                            matches = false;
                             break;
                         }
                     }
-                    
-                    if (isWma || isM4a) {
-                        //WMA data can sometimes be played directly
+                    if (matches)
+                    {
+                        isM4a = true;
+                        break;
+                    }
+                }
+
+                if (isWma || isM4a)
+                {
+                    //WMA data can sometimes be played directly
 #if DIRECTX
-                        throw new NotImplementedException();
+                    throw new NotImplementedException();
 #elif !WINRT
                         //hack - NSSound can't play non-wav from data, we have to give a filename
                         string filename = Path.GetTempFileName();
@@ -378,58 +463,45 @@ namespace Microsoft.Xna.Framework.Audio
 #else
 						throw new NotImplementedException();
 #endif
-                    } else {
-                        //An xWMA or XMA2 file. Can't be played atm :(
-                        throw new NotImplementedException();
-                    }
-                } 
-                else if (codec == MiniFormatTag_ADPCM) 
+                }
+                else
                 {
+                    //An xWMA or XMA2 file. Can't be played atm :(
+                    throw new NotImplementedException();
+                }
+            }
+            else if (wavebankentry.codec == MiniFormatTag_ADPCM)
+            {
 #if DIRECTX
-                    _sounds[current_entry] = new SoundEffect(audiodata, rate, (AudioChannels)chans)
-                    {
-                        _format = new SharpDX.Multimedia.WaveFormatAdpcm(rate, chans, align)
-                    };
+                _sounds[current_entry] = new SoundEffect(audiodata, wavebankentry.rate, (AudioChannels)wavebankentry.chans)
+                {
+                    _format = new SharpDX.Multimedia.WaveFormatAdpcm(wavebankentry.rate, wavebankentry.chans, wavebankentry.align)
+                };
 #else
                     using (var dataStream = new MemoryStream(audiodata)) {
                         using (var source = new BinaryReader(dataStream)) {
                             _sounds[current_entry] = new SoundEffect(
-                                MSADPCMToPCM.MSADPCM_TO_PCM(source, (short) chans, (short) align),
-                                rate,
-                                (AudioChannels)chans
+                                MSADPCMToPCM.MSADPCM_TO_PCM(source, (short) wavebankentry.chans, (short) wavebankentry.align),
+                                wavebankentry.rate,
+                                (AudioChannels)wavebankentry.chans
                             );
                         }
                     }
 #endif
-                } 
-                else {
-                    throw new NotImplementedException();
-                }
-                
             }
-			
-			audioEngine.Wavebanks[_bankName] = this;
+            else
+            {
+                throw new NotImplementedException();
+            }
         }
-		
-        /// <param name="audioEngine">Instance of the AudioEngine to associate this wave bank with.</param>
-        /// <param name="streamingWaveBankFilename">Path to the .xwb to stream from.</param>
-        /// <param name="offset">DVD sector-aligned offset within the wave bank data file.</param>
-        /// <param name="packetsize">Stream packet size, in sectors, to use for each stream. The minimum value is 2.</param>
-        /// <remarks>
-        /// <para>This constructor streams wave data as needed.</para>
-        /// <para>Note that packetsize is in sectors, which is 2048 bytes.</para>
-        /// <para>AudioEngine.Update() must be called at least once before using data from a streaming wave bank.</para>
-        /// </remarks>
-		public WaveBank(AudioEngine audioEngine, string streamingWaveBankFilename, int offset, short packetsize)
-			: this(audioEngine, streamingWaveBankFilename)
-		{
-			if (offset != 0) {
-				throw new NotImplementedException();
-			}
-		}
 
         internal SoundEffect GetSoundEffect(int trackIndex)
         {
+            if (_sounds[trackIndex] == null)
+            {
+                LoadWaveEntry(_StreamWaveBankEntries[trackIndex], trackIndex, _StreamWaveBankReader);
+            }
+
             return _sounds[trackIndex];
         }
 
@@ -440,9 +512,20 @@ namespace Microsoft.Xna.Framework.Audio
                 return;
 
             foreach (var s in _sounds)
-                s.Dispose();
+            {
+                if (s != null)
+                    s.Dispose();
+            }
+            _sounds = null;
+
+            if (_StreamWaveBankReader != null)
+            {
+                _StreamWaveBankReader.Close();
+                _StreamWaveBankReader = null;
+            }
 
             IsDisposed = true;
+            IsPrepared = false;
         }
 		#endregion
     }
