@@ -9,13 +9,21 @@ namespace Microsoft.Xna.Framework.Audio
 {
 	class XactClip
 	{
-        private readonly float _defaultVolume;
-        private float _volumeScale;
-        private float _volume;
+        private          int         _nextEvent;
+        private readonly float       _defaultVolume;
+        private          float       _volumeScale;
+        private          float       _volume;
+        private          float       _time;
 
 		private readonly ClipEvent[] _events;
-        private float _time;
-        private int _nextEvent;
+
+        public int pTrackIndex
+        {
+            get
+            {
+                return ((PlayWaveEvent)_events[0]).pTrackIndex;
+            }
+        }
 
 		public XactClip (SoundBank soundBank, BinaryReader clipReader)
 		{

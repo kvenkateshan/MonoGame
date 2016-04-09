@@ -18,29 +18,37 @@ namespace Microsoft.Xna.Framework.Audio
 
 	class PlayWaveEvent : ClipEvent
     {
-        private readonly SoundBank _soundBank;
+        private readonly SoundBank           _soundBank;
+                                             
+        private readonly VariationType       _variation;
+                                             
+        private readonly int                 _loopCount;
+                                             
+        private readonly bool                _newWaveOnLoop;
+                                             
+        private readonly int[]               _tracks;
+        private readonly int[]               _waveBanks;
+                                             
+        private readonly byte[]              _weights;
+        private readonly int                 _totalWeights;
+                                             
+        private          float               _trackVolume;
+                                             
+        private readonly Vector2?            _volumeVar;
+        private readonly Vector2?            _pitchVar;
+                                             
+        private          int                 _wavIndex;
+        private          int                 _loopIndex;
 
-        private readonly VariationType _variation;
+        private          SoundEffectInstance _wav;
 
-        private readonly int _loopCount;
-
-        private readonly bool _newWaveOnLoop;
-
-        private readonly int[] _tracks;
-        private readonly int[] _waveBanks;
-        
-        private readonly byte[] _weights;
-        private readonly int _totalWeights;
-
-        private float _trackVolume;
-
-        private readonly Vector2? _volumeVar;
-        private readonly Vector2? _pitchVar;
-
-        private int _wavIndex;
-        private int _loopIndex;
-
-        private SoundEffectInstance _wav;
+        public int pTrackIndex
+        {
+            get
+            {
+                return _tracks[0];
+            }
+        }
 
         public PlayWaveEvent(   XactClip clip, float timeStamp, float randomOffset, SoundBank soundBank,
                                 int[] waveBanks, int[] tracks, byte[] weights, int totalWeights,
@@ -48,18 +56,18 @@ namespace Microsoft.Xna.Framework.Audio
                                 int loopCount, bool newWaveOnLoop)
             : base(clip, timeStamp, randomOffset)
         {
-            _soundBank = soundBank;
-            _waveBanks = waveBanks;
-            _tracks = tracks;
-            _weights = weights;
-            _totalWeights = totalWeights;
-            _volumeVar = volumeVar;
-            _pitchVar = pitchVar;
-            _wavIndex = -1;
-            _loopIndex = 0;
-            _trackVolume = 1.0f;
-            _variation = variation;
-            _loopCount = loopCount;
+            _soundBank     = soundBank;
+            _waveBanks     = waveBanks;
+            _tracks        = tracks;
+            _weights       = weights;
+            _totalWeights  = totalWeights;
+            _volumeVar     = volumeVar;
+            _pitchVar      = pitchVar;
+            _wavIndex      = -1;
+            _loopIndex     = 0;
+            _trackVolume   = 1.0f;
+            _variation     = variation;
+            _loopCount     = loopCount;
             _newWaveOnLoop = newWaveOnLoop;
         }
 

@@ -1,6 +1,7 @@
 // MonoGame - Copyright (C) The MonoGame Team
 // This file is subject to the terms and conditions defined in
 // file 'LICENSE.txt', which is part of this source code package.
+#define DISABLE_STREAMING
 
 using System;
 using System.IO;
@@ -375,6 +376,11 @@ namespace Microsoft.Xna.Framework.Audio
             IsPrepared = true;
         }
 
+        internal void LoadWaveEntry(int trackIndex)
+        {
+            LoadWaveEntry(_StreamWaveBankEntries[trackIndex], trackIndex, _StreamWaveBankReader);
+        }
+
         private void LoadWaveEntry(WaveBankEntry wavebankentry, int current_entry, BinaryReader reader)
         {
             reader.BaseStream.Seek(wavebankentry.PlayRegion.Offset, SeekOrigin.Begin);
@@ -495,12 +501,14 @@ namespace Microsoft.Xna.Framework.Audio
             }
         }
 
-        internal SoundEffect GetSoundEffect(int trackIndex)
+        public SoundEffect GetSoundEffect(int trackIndex)
         {
+#if DISABLE_STREAMING
             if (_sounds[trackIndex] == null)
             {
                 LoadWaveEntry(_StreamWaveBankEntries[trackIndex], trackIndex, _StreamWaveBankReader);
             }
+#endif
 
             return _sounds[trackIndex];
         }

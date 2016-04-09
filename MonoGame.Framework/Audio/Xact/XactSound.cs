@@ -9,26 +9,33 @@ namespace Microsoft.Xna.Framework.Audio
 {
 	class XactSound
 	{
-		private readonly bool _complexSound;
+		private readonly bool       _complexSound;
+        private readonly int        _waveBankIndex;
+        private readonly int        _trackIndex;
+        private readonly uint       _categoryID;
+        private readonly float      _volume;
+        private readonly float      _pitch;
+        private          float      _cueVolume;
         private readonly XactClip[] _soundClips;
-        private readonly int _waveBankIndex;
-        private readonly int _trackIndex;
-        private readonly float _volume;
-        private readonly float _pitch;
-        private readonly uint _categoryID;
-        private readonly SoundBank _soundBank;
+        private readonly SoundBank  _soundBank;
 
         private SoundEffectInstance _wave;
 
-        private float _cueVolume;
+        public int pTrackIndex 
+        { 
+            get 
+            {
+                return _soundClips != null ? _soundClips[0].pTrackIndex : _trackIndex;
+            }
+        }
 
         public XactSound(SoundBank soundBank, int waveBankIndex, int trackIndex)
         {
             _complexSound = false;
 
-            _soundBank = soundBank;
+            _soundBank     = soundBank;
             _waveBankIndex = waveBankIndex;
-            _trackIndex = trackIndex;
+            _trackIndex    = trackIndex;
         }
 
 		public XactSound(SoundBank soundBank, BinaryReader soundReader)
@@ -88,8 +95,9 @@ namespace Microsoft.Xna.Framework.Audio
 
             if (_complexSound)
             {
-                foreach (var sound in _soundClips)
-                    sound.SetFade(fadeInTime, fadeOutTime);
+                var numSoundClips = _soundClips.Length;
+                for (var i = 0; i < numSoundClips; i++)
+                    _soundClips[i].SetFade(fadeInTime, fadeOutTime);
             }
             else
             {
@@ -97,7 +105,7 @@ namespace Microsoft.Xna.Framework.Audio
             }
         }
 
-		public void Play()
+        public void Play()
         {
             var category = _soundBank.AudioEngine.Categories[_categoryID];
             var curInstances = category.GetPlayingInstanceCount();
@@ -115,8 +123,9 @@ namespace Microsoft.Xna.Framework.Audio
 
 			if (_complexSound) 
             {
-				foreach (XactClip clip in _soundClips)
-					clip.Play();
+                var numSoundClips = _soundClips.Length;
+                for (var i = 0; i < numSoundClips; i++)
+                    _soundClips[i].Play();
 			} 
             else 
             {
@@ -142,8 +151,9 @@ namespace Microsoft.Xna.Framework.Audio
         {
             if (_complexSound)
             {
-                foreach (var sound in _soundClips)
-                    sound.Update(dt);
+                var numSoundClips = _soundClips.Length;
+                for (var i = 0; i < numSoundClips; i++)
+                    _soundClips[i].Update(dt);
             }
             else
             {
@@ -156,8 +166,9 @@ namespace Microsoft.Xna.Framework.Audio
         {
             if (_complexSound)
             {
-                foreach (XactClip clip in _soundClips)
-                    clip.Stop();
+                var numSoundClips = _soundClips.Length;
+                for (var i = 0; i < numSoundClips; i++)
+                    _soundClips[i].Stop();
             }
             else
             {
@@ -173,8 +184,9 @@ namespace Microsoft.Xna.Framework.Audio
         {
             if (_complexSound)
             {
-                foreach (var sound in _soundClips)
-                    sound.Stop();
+                var numSoundClips = _soundClips.Length;
+                for (var i = 0; i < numSoundClips; i++)
+                    _soundClips[i].Stop();
             }
             else
             {
@@ -190,8 +202,10 @@ namespace Microsoft.Xna.Framework.Audio
         {
 			if (_complexSound)
             {
-                foreach (var sound in _soundClips)
+                var numSoundClips = _soundClips.Length;
+                for (var i = 0; i < numSoundClips; i++)
                 {
+                    var sound = _soundClips[i];
                     if (sound.State == SoundState.Playing)
                         sound.Pause();
                 }
@@ -207,8 +221,10 @@ namespace Microsoft.Xna.Framework.Audio
         {
 			if (_complexSound)
             {
-                foreach (var sound in _soundClips)
+                var numSoundClips = _soundClips.Length;
+                for (var i = 0; i < numSoundClips; i++)
                 {
+                    var sound = _soundClips[i];
                     if (sound.State == SoundState.Paused)
                         sound.Resume();
                 }
@@ -227,8 +243,9 @@ namespace Microsoft.Xna.Framework.Audio
 
             if (_complexSound)
             {
-                foreach (var clip in _soundClips)
-                    clip.SetVolumeScale(volume);
+                var numSoundClips = _soundClips.Length;
+                for (var i = 0; i < numSoundClips; i++)
+                    _soundClips[i].SetVolumeScale(volume);
             }
             else
             {
@@ -250,8 +267,9 @@ namespace Microsoft.Xna.Framework.Audio
             {
 				if (_complexSound)
                 {
-                    foreach (var clip in _soundClips)
-                        if (clip.State == SoundState.Playing)
+                    var numSoundClips = _soundClips.Length;
+                    for (var i = 0; i < numSoundClips; i++)
+                        if (_soundClips[i].State == SoundState.Playing)
                             return true;
 
                     return false;
@@ -267,8 +285,9 @@ namespace Microsoft.Xna.Framework.Audio
             {
                 if (_complexSound)
                 {
-                    foreach (var clip in _soundClips)
-                        if (clip.State == SoundState.Stopped)
+                    var numSoundClips = _soundClips.Length;
+                    for (var i = 0; i < numSoundClips; i++)
+                        if (_soundClips[i].State == SoundState.Stopped)
                             return true;
 
                     return false;
@@ -284,8 +303,9 @@ namespace Microsoft.Xna.Framework.Audio
 			{
 				if (_complexSound) 
                 {
-					foreach (var clip in _soundClips)
-						if (clip.State == SoundState.Paused) 
+                    var numSoundClips = _soundClips.Length;
+                    for (var i = 0; i < numSoundClips; i++)
+                        if (_soundClips[i].State == SoundState.Paused) 
                             return true;
 
 					return false;
@@ -299,8 +319,9 @@ namespace Microsoft.Xna.Framework.Audio
         {
             if (_complexSound)
             {
-                foreach (var clip in _soundClips)
-                    clip.Apply3D(listener, emitter);
+                var numSoundClips = _soundClips.Length;
+                for (var i = 0; i < numSoundClips; i++)
+                    _soundClips[i].Apply3D(listener, emitter);
             }
             else
             {

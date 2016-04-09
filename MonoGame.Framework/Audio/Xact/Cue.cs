@@ -15,12 +15,22 @@ namespace Microsoft.Xna.Framework.Audio
 	public class Cue : IDisposable
 	{
         private readonly AudioEngine _engine;
-        private readonly string _name;
+        private readonly string      _name;
         private readonly XactSound[] _sounds;
-		private readonly float[] _probs;
+		private readonly float[]     _probs;
 
-        private XactSound _curSound;
-        private float _volume = 1.0f;
+        private XactSound            _curSound;
+        private float                _volume = 1.0f;
+
+        private bool                _isPreparing;
+
+        public int pTrackIndex
+        { 
+            get 
+            {
+                return _sounds[0].pTrackIndex;
+            } 
+        }
 
         /// <summary>Indicates whether or not the cue is currently paused.</summary>
         /// <remarks>IsPlaying and IsPaused both return true if a cue is paused while playing.</remarks>
@@ -74,7 +84,12 @@ namespace Microsoft.Xna.Framework.Audio
             get
             {
                 // TODO: Implement me!
-                return false;
+                return _isPreparing;
+            }
+
+            set
+            { 
+                _isPreparing = value;
             }
         }
 
@@ -96,20 +111,22 @@ namespace Microsoft.Xna.Framework.Audio
 		
 		internal Cue(AudioEngine engine, string cuename, XactSound sound)
 		{
-			_engine = engine;
-			_name = cuename;
-			_sounds = new XactSound[1];
-			_sounds[0] = sound;
-			_probs = new float[1];
-			_probs[0] = 1.0f;
+			_engine      = engine;
+			_name        = cuename;
+			_sounds      = new XactSound[1];
+			_sounds[0]   = sound;
+			_probs       = new float[1];
+			_probs[0]    = 1.0f;
+            _isPreparing = false;
 		}
 		
 		internal Cue(AudioEngine engine, string cuename, XactSound[] sounds, float[] probs)
 		{
-            _engine = engine;
-			_name = cuename;
-			_sounds = sounds;
-			_probs = probs;
+            _engine      = engine;
+			_name        = cuename;
+			_sounds      = sounds;
+			_probs       = probs;
+            _isPreparing = false;
 		}
 
         /// <summary>Pauses playback.</summary>

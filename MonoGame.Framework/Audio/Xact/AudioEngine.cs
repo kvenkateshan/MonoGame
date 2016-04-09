@@ -264,6 +264,16 @@ namespace Microsoft.Xna.Framework.Audio
 		{
 			variables [variableLookup [name]].value = value;
 		}
+
+        public void LoadWaveEntry(string waveBankName, int trackIndex)
+        {
+            WaveBank waveBank;
+            if (!Wavebanks.TryGetValue(waveBankName, out waveBank))
+                throw new Exception("The wave bank '" + waveBankName + "' was not found!");
+
+            waveBank.LoadWaveEntry(trackIndex);
+            System.Console.WriteLine(waveBankName + " trackIndex: " + trackIndex);
+        }
 		
 		#region IDisposable implementation
 		public void Dispose ()

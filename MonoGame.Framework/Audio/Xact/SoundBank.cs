@@ -231,11 +231,11 @@ namespace Microsoft.Xna.Framework.Audio
                 var name = _waveBankNames[waveBankIndex];
                 if (!_audioengine.Wavebanks.TryGetValue(name, out waveBank))
                     throw new Exception("The wave bank '" + name + "' was not found!");
-                _waveBanks[waveBankIndex] = waveBank;                
+                _waveBanks[waveBankIndex] = waveBank;
             }
 
             var sound = waveBank.GetSoundEffect(trackIndex);
-            return sound.GetPooledInstance(true);
+            return sound != null ? sound.GetPooledInstance(true) : null;
         }
 		
         /// <summary>

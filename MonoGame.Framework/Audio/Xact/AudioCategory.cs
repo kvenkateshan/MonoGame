@@ -88,7 +88,8 @@ namespace Microsoft.Xna.Framework.Audio
         internal int GetPlayingInstanceCount()
         {
             var sum = 0;
-            for (var i = 0; i < sounds.Count; i++)
+            var numSounds = sounds.Count;
+            for (var i = 0; i < numSounds; i++)
             {
                 if (sounds[i].Playing)
                     sum++;
@@ -98,7 +99,8 @@ namespace Microsoft.Xna.Framework.Audio
 
         internal XactSound GetOldestInstance()
         {
-            for (var i = 0; i < sounds.Count; i++)
+            var numSounds = sounds.Count;
+            for (var i = 0; i < numSounds; i++)
             {
                 if (sounds[i].Playing)
                     return sounds[i];
