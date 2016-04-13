@@ -228,9 +228,10 @@ namespace Microsoft.Xna.Framework.Audio
             {
                 var cue = _activeCues[x];
 
-                cue.Update(dt);
+                if (!cue.IsPreparing)
+                    cue.Update(dt);
 
-                if (cue.IsStopped)
+                if (cue.IsStopped && !cue.IsPreparing)
                 {
                     _activeCues.Remove(cue);
                     continue;
@@ -239,6 +240,11 @@ namespace Microsoft.Xna.Framework.Audio
                 x++;
             }
 		}
+
+        public void Reset()
+        {
+            _activeCues.Clear();
+        }
 		
         /// <summary>Returns an audio category by name.</summary>
         /// <param name="name">Friendly name of the category to get.</param>
@@ -265,14 +271,17 @@ namespace Microsoft.Xna.Framework.Audio
 			variables [variableLookup [name]].value = value;
 		}
 
-        public void LoadWaveEntry(string waveBankName, int trackIndex)
+        public void LoadWaveEntry(string waveBankName, Cue cue)
         {
             WaveBank waveBank;
             if (!Wavebanks.TryGetValue(waveBankName, out waveBank))
                 throw new Exception("The wave bank '" + waveBankName + "' was not found!");
 
-            waveBank.LoadWaveEntry(trackIndex);
-            System.Console.WriteLine(waveBankName + " trackIndex: " + trackIndex);
+            waveBank.LoadWaveEntry(cue.pTrackIndex);
+            //System.Console.WriteLine(waveBankName + " trackIndex: " + cue.pTrackIndex);
+
+            cue.IsPreparing = false;
+            cue.IsPrepared  = true;
         }
 		
 		#region IDisposable implementation

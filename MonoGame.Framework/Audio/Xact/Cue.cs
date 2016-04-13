@@ -22,7 +22,8 @@ namespace Microsoft.Xna.Framework.Audio
         private XactSound            _curSound;
         private float                _volume = 1.0f;
 
-        private bool                _isPreparing;
+        private bool                 _isPreparing;
+        private bool                 _isPrepared;
 
         public int pTrackIndex
         { 
@@ -83,7 +84,6 @@ namespace Microsoft.Xna.Framework.Audio
         {
             get
             {
-                // TODO: Implement me!
                 return _isPreparing;
             }
 
@@ -97,8 +97,12 @@ namespace Microsoft.Xna.Framework.Audio
         {
             get
             {
-                // TODO: Implement me!
-                return false;
+                return _isPrepared;
+            }
+
+            set
+            {
+                _isPrepared = value;
             }
         }
 
@@ -118,6 +122,7 @@ namespace Microsoft.Xna.Framework.Audio
 			_probs       = new float[1];
 			_probs[0]    = 1.0f;
             _isPreparing = false;
+            _isPrepared  = false;
 		}
 		
 		internal Cue(AudioEngine engine, string cuename, XactSound[] sounds, float[] probs)
@@ -127,6 +132,7 @@ namespace Microsoft.Xna.Framework.Audio
 			_sounds      = sounds;
 			_probs       = probs;
             _isPreparing = false;
+            _isPrepared  = false;
 		}
 
         /// <summary>Pauses playback.</summary>
@@ -167,6 +173,12 @@ namespace Microsoft.Xna.Framework.Audio
 			if (_curSound != null)
                 _curSound.Stop(options);
 		}
+
+        public void Prepare()
+        {
+            _isPreparing = true;
+            _isPrepared  = false;
+        }
 		
         /// <summary>
         /// Sets the value of a cue-instance variable based on its friendly name.

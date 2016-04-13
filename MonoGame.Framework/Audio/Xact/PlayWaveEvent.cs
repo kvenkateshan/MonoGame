@@ -46,7 +46,7 @@ namespace Microsoft.Xna.Framework.Audio
         {
             get
             {
-                return _tracks[0];
+                return _tracks[_wavIndex];
             }
         }
 
@@ -63,7 +63,7 @@ namespace Microsoft.Xna.Framework.Audio
             _totalWeights  = totalWeights;
             _volumeVar     = volumeVar;
             _pitchVar      = pitchVar;
-            _wavIndex      = -1;
+            _wavIndex      = 0;
             _loopIndex     = 0;
             _trackVolume   = 1.0f;
             _variation     = variation;
@@ -76,74 +76,76 @@ namespace Microsoft.Xna.Framework.Audio
             if (_wav != null && _wav.State != SoundState.Stopped)
                 _wav.Stop();
 
-            Play(true);
+            //UpdateWavIndex();
+            PlayCurWav();
+            UpdateWavIndex();
         }
 
-        private void Play(bool pickNewWav)
+        private void PlayCurWav()
         {
             var trackCount = _tracks.Length;
 
-            // Do we need to pick a new wav to play first?
-            if (pickNewWav)
-            {
-                switch (_variation)
-                {
-                    case VariationType.Ordered:
-                        _wavIndex = (_wavIndex + 1) % trackCount;
-                        break;
+            //// Do we need to pick a new wav to play first?
+            //if (pickNewWav)
+            //{
+            //    switch (_variation)
+            //    {
+            //        case VariationType.Ordered:
+            //            _wavIndex = (_wavIndex + 1) % trackCount;
+            //            break;
 
-                    case VariationType.OrderedFromRandom:
-                        _wavIndex = (_wavIndex + 1) % trackCount;
-                        break;
+            //        case VariationType.OrderedFromRandom:
+            //            _wavIndex = (_wavIndex + 1) % trackCount;
+            //            break;
 
-                    case VariationType.Random:
-                        if (_weights == null || trackCount == 1)
-                            _wavIndex = XactHelpers.Random.Next() % trackCount;
-                        else
-                        {
-                            var sum = XactHelpers.Random.Next(_totalWeights);
-                            for (var i=0; i < trackCount; i++)
-                            {
-                                sum -= _weights[i];
-                                if (sum <= 0)
-                                {
-                                    _wavIndex = i;
-                                    break;
-                                }
-                            }
-                        }
-                        break;
+            //        case VariationType.Random:
+            //            if (_weights == null || trackCount == 1)
+            //                _wavIndex = XactHelpers.Random.Next() % trackCount;
+            //            else
+            //            {
+            //                var sum = XactHelpers.Random.Next(_totalWeights);
+            //                for (var i=0; i < trackCount; i++)
+            //                {
+            //                    sum -= _weights[i];
+            //                    if (sum <= 0)
+            //                    {
+            //                        _wavIndex = i;
+            //                        break;
+            //                    }
+            //                }
+            //            }
+            //            break;
 
-                    case VariationType.RandomNoImmediateRepeats:
-                    {
-                        if (_weights == null || trackCount == 1)
-                            _wavIndex = XactHelpers.Random.Next() % trackCount;
-                        else
-                        {
-                            var last = _wavIndex;
-                            var sum = XactHelpers.Random.Next(_totalWeights);
-                            for (var i=0; i < trackCount; i++)
-                            {
-                                sum -= _weights[i];
-                                if (sum <= 0)
-                                {
-                                    _wavIndex = i;
-                                    break;
-                                }
-                            }
+            //        case VariationType.RandomNoImmediateRepeats:
+            //        {
+            //            if (_weights == null || trackCount == 1)
+            //                _wavIndex = XactHelpers.Random.Next() % trackCount;
+            //            else
+            //            {
+            //                var last = _wavIndex;
+            //                var sum = XactHelpers.Random.Next(_totalWeights);
+            //                for (var i=0; i < trackCount; i++)
+            //                {
+            //                    sum -= _weights[i];
+            //                    if (sum <= 0)
+            //                    {
+            //                        _wavIndex = i;
+            //                        break;
+            //                    }
+            //                }
 
-                            if (_wavIndex == last)
-                                _wavIndex = (_wavIndex + 1) % trackCount;
-                        }
-                        break;
-                    }
+            //                if (_wavIndex == last)
+            //                    _wavIndex = (_wavIndex + 1) % trackCount;
+            //            }
+            //            break;
+            //        }
 
-                    case VariationType.Shuffle:
-                        // TODO: Need some sort of deck implementation.
-                        _wavIndex = XactHelpers.Random.Next() % trackCount;
-                        break;
-                };
-            }
+            //        case VariationType.Shuffle:
+            //            // TODO: Need some sort of deck implementation.
+            //            _wavIndex = XactHelpers.Random.Next() % trackCount;
+            //            break;
+            //    };
+            //}
 
             _wav = _soundBank.GetSoundEffectInstance(_waveBanks[_wavIndex], _tracks[_wavIndex]);
             if (_wav == null)
@@ -225,7 +227,9 @@ namespace Microsoft.Xna.Framework.Audio
                         ++_loopIndex;
 
                     // Play the next track.
-                    Play(_newWaveOnLoop);
+                    PlayCurWav();
+                    if (_newWaveOnLoop)
+                        UpdateWavIndex();
                 }
             }
 
@@ -236,6 +240,71 @@ namespace Microsoft.Xna.Framework.Audio
         {
             if (_wav != null)
                 _wav.Apply3D(listener, emitter);
+        }
+
+        public void UpdateWavIndex()
+        {
+            var trackCount = _tracks.Length;
+
+            // Do we need to pick a new wav to play first?
+
+            switch (_variation)
+            {
+                case VariationType.Ordered:
+                    _wavIndex = (_wavIndex + 1) % trackCount;
+                    break;
+
+                case VariationType.OrderedFromRandom:
+                    _wavIndex = (_wavIndex + 1) % trackCount;
+                    break;
+
+                case VariationType.Random:
+                    if (_weights == null || trackCount == 1)
+                        _wavIndex = XactHelpers.Random.Next() % trackCount;
+                    else
+                    {
+                        var sum = XactHelpers.Random.Next(_totalWeights);
+                        for (var i = 0; i < trackCount; i++)
+                        {
+                            sum -= _weights[i];
+                            if (sum <= 0)
+                            {
+                                _wavIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    break;
+
+                case VariationType.RandomNoImmediateRepeats:
+                    {
+                        if (_weights == null || trackCount == 1)
+                            _wavIndex = XactHelpers.Random.Next() % trackCount;
+                        else
+                        {
+                            var last = _wavIndex;
+                            var sum = XactHelpers.Random.Next(_totalWeights);
+                            for (var i = 0; i < trackCount; i++)
+                            {
+                                sum -= _weights[i];
+                                if (sum <= 0)
+                                {
+                                    _wavIndex = i;
+                                    break;
+                                }
+                            }
+
+                            if (_wavIndex == last)
+                                _wavIndex = (_wavIndex + 1) % trackCount;
+                        }
+                        break;
+                    }
+
+                case VariationType.Shuffle:
+                    // TODO: Need some sort of deck implementation.
+                    _wavIndex = XactHelpers.Random.Next() % trackCount;
+                    break;
+            };
         }
     }
 }
